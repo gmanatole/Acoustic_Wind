@@ -39,16 +39,28 @@ class Fenetre(QWidget):
 	
 	def __init__(self):
 
-		QWidget.__init__(self)
+		super(QWidget, self).__init__()
+		self.layout = QVBoxLayout(self)
+		#QWidget.__init__(self)
 		self.setWindowTitle("Estimate wind speed with underwater acoustic recordings")
 		self.threadpool = QThreadPool()
 
-		layout = QGridLayout()
+		# Initialize tab screen
+		self.tabs = QTabWidget()
+		self.tab1 = QWidget()
+		self.tab2 = QWidget()
+		self.tabs.resize(300,200)
+        
+		# Add tabs
+		self.tabs.addTab(self.tab1,"Estimate Weather")
+		self.tabs.addTab(self.tab2,"Define user parameters")
+
+		self.tab1.layout = QGridLayout()	
 
 		#PREPARE PLOT
 		#self.sc = MplCanvas(self, width=5, height=4, dpi=100)
 		self.wind_plot = PlotWidget()		
-		layout.addWidget(self.wind_plot, 4, 2)
+		self.tab1.layout.addWidget(self.wind_plot, 4, 2)
 
 		#PREPARE TABLE
 		self.spl_table = QTableWidget()
@@ -57,7 +69,7 @@ class Fenetre(QWidget):
 		self.spl_table.setItem(0, 0, QTableWidgetItem('Timestamp'))
 		self.spl_table.setItem(0, 1, QTableWidgetItem('Wind speed (m/s)'))
 		self.spl_table.setItem(0, 2, QTableWidgetItem('SPL (db re 1 uPa)'))
-		layout.addWidget(self.spl_table, 4, 1)
+		self.tab1.layout.addWidget(self.spl_table, 4, 1)
 
 		#METHOD SELECTION
 		self.dropdown = QComboBox(self)
@@ -67,18 +79,18 @@ class Fenetre(QWidget):
 		self.method = 'Default'
 		self.dropdown.currentIndexChanged.connect(self.handle_selection_change)
 		self.dropdown_label = QLabel('No method selected')
-		layout.addWidget(self.dropdown_label, 0, 1)
-		layout.addWidget(self.dropdown, 0, 0)
+		self.tab1.layout.addWidget(self.dropdown_label, 0, 1)
+		self.tab1.layout.addWidget(self.dropdown, 0, 0)
 
 		#BATCH SIZE AND TIME STEP
 		self.timestep_label = QLabel('Please enter audio timestep (in seconds)')
-		layout.addWidget(self.timestep_label, 2, 0)
+		self.tab1.layout.addWidget(self.timestep_label, 2, 0)
 		self.timestep = QLineEdit(self)
-		layout.addWidget(self.timestep, 2, 1)
+		self.tab1.layout.addWidget(self.timestep, 2, 1)
 		self.batchsize_label = QLabel('Please enter batchsize')
-		layout.addWidget(self.batchsize_label, 3, 0)
+		self.tab1.layout.addWidget(self.batchsize_label, 3, 0)
 		self.batchsize = QLineEdit(self)
-		layout.addWidget(self.batchsize, 3, 1)
+		self.tab1.layout.addWidget(self.batchsize, 3, 1)
 
 
 		#ESTIMATION BUTTON
@@ -86,23 +98,26 @@ class Fenetre(QWidget):
 		self.estimate.clicked.connect(self.press_estimate)
 		#self.estimate.setGeometry(250, 250, 20, 30)  
 		#self.estimate_label.setGeometry(250, 260, 20, 30) 
-		layout.addWidget(self.estimate, 0, 2)
-		layout.setColumnStretch(0, 1)
-		layout.setColumnStretch(1, 2)
-		layout.setColumnStretch(2, 4)
-		layout.setRowStretch(0, 1)
-		layout.setRowStretch(1, 2)
-		layout.setRowStretch(2, 3)
-		layout.setRowStretch(3, 4)
-		layout.setRowStretch(4, 6)
-		self.setLayout(layout)
-
+		self.tab1.layout.addWidget(self.estimate, 0, 2)
+		self.tab1.layout.setColumnStretch(0, 1)
+		self.tab1.layout.setColumnStretch(1, 2)
+		self.tab1.layout.setColumnStretch(2, 4)
+		self.tab1.layout.setRowStretch(0, 1)
+		self.tab1.layout.setRowStretch(1, 2)
+		self.tab1.layout.setRowStretch(2, 3)
+		self.tab1.layout.setRowStretch(3, 4)
+		self.tab1.layout.setRowStretch(4, 6)
+#		self.setLayout(self.tab1.layout)
+		self.tab1.setLayout(self.tab1.layout)
 		# DIRECTORY SELECTION
 		self.directory_button = QPushButton("Select Directory")
 		self.directory_button.clicked.connect(self.select_directory)
-		layout.addWidget(self.directory_button, 1, 0)
+		self.tab1.layout.addWidget(self.directory_button, 1, 0)
 		self.directory_label = QLabel('No directory selected')
-		layout.addWidget(self.directory_label, 1, 1)
+		self.tab1.layout.addWidget(self.directory_label, 1, 1)
+
+		self.layout.addWidget(self.tabs)
+		self.setLayout(self.layout)
 
 	def select_directory(self):
 		self.directory = QFileDialog.getExistingDirectory(self, "Select Directory")
