@@ -1,0 +1,6 @@
+[hydrophone]
+
+	sensitivity=-176
+	gain=0
+	Vadc=1
+	Nbits=16
