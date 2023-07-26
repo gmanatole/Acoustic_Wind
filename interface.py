@@ -12,37 +12,29 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationTool
 from matplotlib.figure import Figure
 from config import literature, device
 from models import empirical
-from utils import get_files, get_timestamps, Worker, append_to_toml
+from utils import get_files, get_timestamps, append_to_toml
+from processing.run import Worker
 from processing.preprocessing import Load_Data, compute_spl
 import numpy as np
 
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
-'''class TableModel(QtCore.QAbstractTableModel):
-    def __init__(self, data):
-        super(TableModel, self).__init__()
-        self._data = data
-
-    def data(self, index, role):
-        if role == Qt.DisplayRole:
-            return self._data[index.row()][index.column()]
-
-    def rowCount(self, index):
-        return len(self._data)
-
-    def columnCount(self, index):
-        return len(self._data[0])'''
-
 
 class Fenetre(QWidget):
+	
+	'''
+	Class that create GUI. Multiple tabs are created.
+	Tab 1 : Main interface to load acoustic data, chose method and get wind speed estimation.
+	Tab 2 : Used to enter the user's own method and parameters for wind speed estimation.
+	'''
 	
 	def __init__(self):
 
 		super(QWidget, self).__init__()
 		self.layout = QVBoxLayout(self)
-		#QWidget.__init__(self)
 		self.setWindowTitle("Estimate wind speed with underwater acoustic recordings")
+		#instantiate threadpool for worker class
 		self.threadpool = QThreadPool()
 
 		# CREATE TABS
@@ -58,7 +50,6 @@ class Fenetre(QWidget):
 		####################### TAB 1 #############################
 
 		#PREPARE PLOT
-		#self.sc = MplCanvas(self, width=5, height=4, dpi=100)
 		self.tab1.layout = QGridLayout()	
 		self.wind_plot = PlotWidget()		
 		self.tab1.layout.addWidget(self.wind_plot, 4, 2)
@@ -93,13 +84,19 @@ class Fenetre(QWidget):
 		self.batchsize = QLineEdit(self)
 		self.tab1.layout.addWidget(self.batchsize, 3, 1)
 
-
 		#ESTIMATION BUTTON
 		self.estimate = QPushButton("Estimate wind speed")
 		self.estimate.clicked.connect(self.press_estimate)
-		#self.estimate.setGeometry(250, 250, 20, 30)  
-		#self.estimate_label.setGeometry(250, 260, 20, 30) 
 		self.tab1.layout.addWidget(self.estimate, 0, 2)
+		
+		# DIRECTORY SELECTION
+		self.directory_button = QPushButton("Select Directory")
+		self.directory_button.clicked.connect(self.select_directory)
+		self.tab1.layout.addWidget(self.directory_button, 1, 0)
+		self.directory_label = QLabel('No directory selected')
+		self.tab1.layout.addWidget(self.directory_label, 1, 1)
+
+		#FIX GEOMETRY
 		self.tab1.layout.setColumnStretch(0, 1)
 		self.tab1.layout.setColumnStretch(1, 2)
 		self.tab1.layout.setColumnStretch(2, 4)
@@ -108,19 +105,13 @@ class Fenetre(QWidget):
 		self.tab1.layout.setRowStretch(2, 3)
 		self.tab1.layout.setRowStretch(3, 4)
 		self.tab1.layout.setRowStretch(4, 6)
-#		self.setLayout(self.tab1.layout)
 
-		# DIRECTORY SELECTION
-		self.directory_button = QPushButton("Select Directory")
-		self.directory_button.clicked.connect(self.select_directory)
-		self.tab1.layout.addWidget(self.directory_button, 1, 0)
-		self.directory_label = QLabel('No directory selected')
-		self.tab1.layout.addWidget(self.directory_label, 1, 1)
 
 		self.tab1.setLayout(self.tab1.layout)
 
 		####################### TAB 2 #############################
 
+		#CREATE LABELS AND BUTTONS FOR USER INPUT OF PARAMETERS
 		self.tab2.layout = QGridLayout()
 		self.user_method_label = QLabel('Please enter the method you want to use (quadratic, logarithmic, deep_learning)')
 		self.tab2.layout.addWidget(self.user_method_label, 1, 0)
@@ -154,6 +145,7 @@ class Fenetre(QWidget):
 		self.create_user.clicked.connect(self.save_user)
 		self.tab2.layout.addWidget(self.create_user, 8, 0)
 
+		#FIX GEOMETRY
 		self.tab2.layout.setColumnStretch(0, 3)
 		self.tab2.layout.setColumnStretch(3, 4)
 		self.tab2.setLayout(self.tab2.layout)
@@ -162,19 +154,27 @@ class Fenetre(QWidget):
 		self.setLayout(self.layout)
 
 	def select_directory(self):
+		'''
+		Get and store directory path where sound files to analyze are stored
+		'''
 		self.directory = QFileDialog.getExistingDirectory(self, "Select Directory")
 		if self.directory:
 			self.directory_label.setText(self.directory)
 
 	def handle_selection_change(self, index):
-		# Retrieve the selected item
+		'''
+		Dropdown menu to chose method for wind speed estimation
+		'''
 		self.method = self.dropdown.currentText()
 		self.dropdown_label.setText(f'{self.method} method selected')
 
 		
 	def computation_complete(self):
-		#self.sc.axes.plot(self.worker.ts, self.worker.wind_speed)
+		'''
+		Once computation is complete, show results in table and as a plot. Data are stored in worker class.
+		'''
 		self.wind_plot.plot(self.worker.ts, self.worker.wind_speed)
+		#Reshape time, spl and wind estimation data for table widget
 		table_data = np.hstack((np.array(self.worker.ts).reshape(-1,1), np.array(self.worker.wind_speed).reshape(-1,1), np.array(self.worker.sound_pressure_level).reshape(-1,1)))
 		self.spl_table.setRowCount(len(table_data)+1)
 		for i, elem in enumerate(table_data):
@@ -183,20 +183,22 @@ class Fenetre(QWidget):
 			self.spl_table.setItem(i+1, 2, QTableWidgetItem(str(np.round(elem[2], 2))))
 
 	def press_estimate(self):
-
+		'''
+		Function that gets wav files and launches computation of spl and wind estimation
+		'''
 		iteration = 0
 		fns = [get_files(self.directory)[1]]
-		timestamps = get_timestamps(fns, float(self.timestep.text())) 
-		self.worker = Worker(timestamps, method = self.method, batch_size = int(self.batchsize.text()))
-		self.worker.signals.finished.connect(self.computation_complete)
+		timestamps = get_timestamps(fns, float(self.timestep.text())) #Timestamps are created in utils
+		self.worker = Worker(timestamps, method = self.method, batch_size = int(self.batchsize.text())) # SPL and wind estimation are launched
+		self.worker.signals.finished.connect(self.computation_complete)   # Check if computation is finished to plot data and show table
 		self.threadpool.start(self.worker)
 
-		'''for batch in inst :
-			self.estimate_label.setText(f'Estimating wind speed... {int((iteration*100)/len(inst))} %')
-			iteration+=1
-			inst.run(batch)'''
 
 	def save_user(self):
+		'''
+		Saves user parameters from tab2 to config/literature.toml
+		Fills possible blank values with default values defined here.
+		'''
 		file_path = "config/literature.toml"
 		if self.user_samplerate.text() == "":
 			self.user_samplerate.setText('32000')
@@ -208,19 +210,13 @@ class Fenetre(QWidget):
 			self.user_samplelength.setText('1')
 		if self.user_overlap.text() == "":
 			self.user_overlap.setText('0.2')
+		#Create dictionary to add to toml file
 		new_data = b = {'User_Defined': {'model': self.user_method.text(), 
 			'metadata': {'samplerate': self.user_samplerate.text(), 'frequency': self.user_frequency.text()}, 
 			'preprocessing': {'window': 'hanning','duration': self.user_duration.text(), 'sample_length': self.user_samplelength.text(), 'sample_number': '', 'overlap': self.user_overlap.text()},
 			'parameters': dict(zip(string.ascii_lowercase, self.user_parameters.text().replace(" ", "").split(',')))}}
-		append_to_toml(file_path, new_data)
+		append_to_toml(file_path, new_data)  #process is detailed in utils
 
-'''
-class MplCanvas(FigureCanvasQTAgg):
-
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = fig.add_subplot(111)
-        super(MplCanvas, self).__init__(fig)'''
 
 
 app = QApplication.instance() 
