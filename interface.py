@@ -264,7 +264,7 @@ class Fenetre(QWidget):
 		Function that gets wav files and launches computation of spl and wind estimation
 		'''
 		iteration = 0
-		fns = [get_files(self.directory)]
+		fns = get_files(self.directory)
 		timestamps = get_timestamps(fns, float(self.timestep.text())) #Timestamps are created in utils
 		self.worker = Worker(timestamps, method = self.method, batch_size = int(self.batchsize.text())) # SPL and wind estimation are launched
 		self.worker.signals.finished.connect(self.computation_complete)   # Check if computation is finished to plot data and show table
