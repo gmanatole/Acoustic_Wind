@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from pyqtgraph import *
 import pyqtgraph as pg
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, FigureCanvas, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from config import literature, device
 from models import empirical
@@ -16,6 +16,7 @@ from utils import get_files, get_timestamps, append_to_toml
 from processing.run import Worker
 from processing.preprocessing import Load_Data, compute_spl
 import numpy as np
+from api.access_cds import make_cds_file, download_era_data
 
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
@@ -41,10 +42,11 @@ class Fenetre(QWidget):
 		self.tabs = QTabWidget()
 		self.tab1 = QWidget()
 		self.tab2 = QWidget()
-		self.tabs.resize(300,200)
+		self.tab3 = QWidget()
 		self.tabs.addTab(self.tab1,"Estimate Weather")
+		self.tabs.addTab(self.tab3,"Download ERA wind speed")
 		self.tabs.addTab(self.tab2,"Define user parameters")
-
+		self.tabs.resize(300,200)
 
 
 		####################### TAB 1 #############################
@@ -150,6 +152,81 @@ class Fenetre(QWidget):
 		self.tab2.layout.setColumnStretch(3, 4)
 		self.tab2.setLayout(self.tab2.layout)
 
+		####################### TAB 3 #############################
+
+		#QLINE BOXES AND CHECKLISTS FOR ERA DOWNLOAD
+		self.tab3.layout = QGridLayout()
+		self.era_browser = QTextBrowser()
+		self.era_browser.setOpenExternalLinks(True)
+		self.era_browser.setReadOnly(True)
+		self.era_browser.append('<a href="https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-single-levels?tab=overview">All information on ERA5\'s model and for CDS account creation can be found here</a>')
+		self.tab3.layout.addWidget(self.era_browser, 0, 0)
+		self.uid_label = QLabel('Please enter the UID of your CDS account')
+		self.tab3.layout.addWidget(self.uid_label, 1, 0)
+		self.uid = QLineEdit(self)
+		self.tab3.layout.addWidget(self.uid, 1, 1)
+		self.key_label = QLabel('Please enter the key of your CDS account')
+		self.tab3.layout.addWidget(self.key_label, 2, 0)
+		self.key = QLineEdit(self)
+		self.tab3.layout.addWidget(self.key, 2, 1)
+		self.north_boundary_label = QLabel('Please enter the northern boundary of your study area (in decimal degrees)')
+		self.tab3.layout.addWidget(self.north_boundary_label, 3, 0)
+		self.north_boundary = QLineEdit(self)
+		self.tab3.layout.addWidget(self.north_boundary, 3, 1)
+		self.south_boundary_label = QLabel('Please enter the southern boundary of your study area (in decimal degrees)')
+		self.tab3.layout.addWidget(self.south_boundary_label, 4, 0)
+		self.south_boundary = QLineEdit(self)
+		self.tab3.layout.addWidget(self.south_boundary, 4, 1)
+		self.east_boundary_label = QLabel('Please enter the eastern boundary of your study area (in decimal degrees)')
+		self.tab3.layout.addWidget(self.east_boundary_label, 5, 0)
+		self.east_boundary = QLineEdit(self)
+		self.tab3.layout.addWidget(self.east_boundary, 5, 1)
+		self.west_boundary_label = QLabel('Please enter the western boundary of your study area (in decimal degrees)')
+		self.tab3.layout.addWidget(self.west_boundary_label, 6, 0)
+		self.west_boundary = QLineEdit(self)
+		self.tab3.layout.addWidget(self.west_boundary, 6, 1)
+		self.years_label = QLabel('Please enter the years of your audio recordings (separated by a comma)')
+		self.tab3.layout.addWidget(self.years_label, 7, 0)
+		self.years = QLineEdit(self)
+		self.tab3.layout.addWidget(self.years, 7, 1)
+		#Create months checklist
+		self.months_label = QLabel('Select the months of your audio recordings')
+		self.tab3.layout.addWidget(self.months_label, 1, 3)
+		months_layout = QHBoxLayout()
+		self.months = []
+		for month in range(1, 13):
+			checkbox = QCheckBox(f"{month}", self)
+			months_layout.addWidget(checkbox)
+			self.months.append(checkbox)
+		self.tab3.layout.addLayout(months_layout, 2, 3)
+		#Create days checklist
+		self.days_label = QLabel('Select the days of your audio recordings')
+		self.tab3.layout.addWidget(self.days_label, 3, 3)
+		days_layout1 = QHBoxLayout()
+		days_layout2 = QHBoxLayout()
+		self.days = []
+		for day in range(1, 32):
+			checkbox = QCheckBox(f"{day}", self)
+			if day < 16:
+				days_layout1.addWidget(checkbox)
+			else :
+				days_layout2.addWidget(checkbox)	
+			self.days.append(checkbox)
+		self.tab3.layout.addLayout(days_layout1, 4, 3)
+		self.tab3.layout.addLayout(days_layout2, 5, 3)
+		self.download_era = QPushButton("Download ERA5 values")
+		self.download_era.clicked.connect(self.api_download)
+		self.tab3.layout.addWidget(self.download_era, 8, 2)
+
+		#FIX GEOMETRY
+		for i in range(11):
+			self.tab3.layout.setRowStretch(i, i+1)
+		self.tab3.layout.setColumnStretch(0, 2)
+		self.tab3.layout.setColumnStretch(2, 3)
+		self.tab3.layout.setColumnStretch(3, 4)
+		self.tab3.layout.setColumnStretch(4, 6)
+		self.tab3.setLayout(self.tab3.layout)
+
 		self.layout.addWidget(self.tabs)
 		self.setLayout(self.layout)
 
@@ -217,6 +294,15 @@ class Fenetre(QWidget):
 			'parameters': dict(zip(string.ascii_lowercase, self.user_parameters.text().replace(" ", "").split(',')))}}
 		append_to_toml(file_path, new_data)  #process is detailed in utils
 
+	def api_download(self):
+		months = list((np.where([month.isChecked() for month in self.months])[0]+1).astype(str))
+		days = list((np.where([day.isChecked() for day in self.days])[0]+1).astype(str))
+		if not os.path.isdir('data') :
+			os.mkdir('data')
+		make_cds_file(self.key.text(), self.uid.text(), os.path.join(os.getcwd(), 'data'))
+		df = download_era_data(os.path.join(os.getcwd(), "data"), "era", self.key, ['10m_u_component_of_wind', '10m_v_component_of_wind'],
+			self.years.text().replace(" ", "").split(','), months, days, ['00:00','01:00','02:00','03:00','04:00','05:00','06:00', '07:00','08:00','09:00','10:00','11:00','12:00', '13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'], 
+			[self.north_boundary.text(), self.west_boundary.text(), self.south_boundary.text(), self.east_boundary.text()])
 
 
 app = QApplication.instance() 
