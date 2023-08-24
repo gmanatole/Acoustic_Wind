@@ -3,6 +3,11 @@ import soundfile as sf
 import numpy as np
 import toml
 
+
+def beaufort(x):
+    return next((i for i, limit in enumerate([0.3, 1.6, 3.4, 5.5, 8, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7]) if x < limit), 12)
+
+
 def get_files(path):
 	'''
 	Get all wav or mp3 files in directory linked to given path 

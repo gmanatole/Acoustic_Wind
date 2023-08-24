@@ -3,7 +3,8 @@ from config import literature, device
 from models import empirical
 from processing.preprocessing import Load_Data, compute_spl
 from PyQt5.QtCore import QObject, pyqtSignal, QRunnable, pyqtSlot
-
+import os
+import pandas as pd
 
 class WorkerSignals(QObject):
 	finished = pyqtSignal()
@@ -40,13 +41,21 @@ class Worker(QRunnable):
 		self.signals = WorkerSignals()
 
 	@pyqtSlot()
+
 	def run(self):
-		inst = Load_Data(self.timestamps, method = self.method, batch_size = self.batch_size)
-		for batch in inst :
-			fn, ts, fs, sig = batch
-			ts, fs = np.array(ts), np.array(fs)
-			spl = compute_spl(sig, fs, np.array(self.config['metadata']['frequency']).reshape(1,-1)[0], device = self.instrument, params = self.config)
-			self.wind_speed.extend(np.array(self.function(spl, *self.parameters)).flatten().tolist())
-			self.sound_pressure_level.extend(spl)
+		if not os.path.exists('data/noise_levels.csv') :
+			inst = Load_Data(self.timestamps, method = self.method, batch_size = self.batch_size)
+			for batch in inst :
+				fn, ts, fs, sig = batch
+				ts, fs = np.array(ts), np.array(fs)
+				spl = compute_spl(sig, fs, np.array(self.config['metadata']['frequency']).reshape(1,-1)[0], device = self.instrument, params = self.config)
+				self.sound_pressure_level.extend(spl)
+			self.timestamps['spl'] = np.array(self.sound_pressure_level).reshape(-1)
+			pd.DataFrame(self.timestamps).to_csv('data/noise_levels.csv')
+		else :
+			self.timestamps = pd.read_csv('data/noise_levels.csv')
+			self.sound_pressure_level = self.timestamps['spl']
+			self.ts = self.timestamps['time']
+		self.wind_speed.extend(np.array(self.function(np.array(self.timestamps['spl']).reshape(-1), *self.parameters)).flatten().tolist())
 		self.signals.finished.emit()
 

@@ -14,9 +14,10 @@ from config import literature, device
 from models import empirical
 from utils import get_files, get_timestamps, append_to_toml
 from processing.run import Worker
+from models.calibrate import Calibrate
 from processing.preprocessing import Load_Data, compute_spl
 import numpy as np
-from api.access_cds import make_cds_file, download_era_data
+from cds.access_cds import make_cds_file, download_era_data
 
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
@@ -35,6 +36,7 @@ class Fenetre(QWidget):
 		super(QWidget, self).__init__()
 		self.layout = QVBoxLayout(self)
 		self.setWindowTitle("Estimate wind speed with underwater acoustic recordings")
+		self.setWindowIcon(QtGui.QIcon('app/logo.png'))
 		#instantiate threadpool for worker class
 		self.threadpool = QThreadPool()
 
@@ -43,9 +45,11 @@ class Fenetre(QWidget):
 		self.tab1 = QWidget()
 		self.tab2 = QWidget()
 		self.tab3 = QWidget()
+		self.tab4 = QWidget()
 		self.tabs.addTab(self.tab1,"Estimate Weather")
 		self.tabs.addTab(self.tab3,"Download ERA wind speed")
 		self.tabs.addTab(self.tab2,"Define user parameters")
+		self.tabs.addTab(self.tab4,"Calibrate model to data")
 		self.tabs.resize(300,200)
 
 
@@ -66,37 +70,38 @@ class Fenetre(QWidget):
 		self.tab1.layout.addWidget(self.spl_table, 4, 1)
 
 		#METHOD SELECTION
-		self.dropdown = QComboBox(self)
+		self.dropdown_est = QComboBox(self)
 		for key in literature.keys():
-			self.dropdown.addItem(key)
-		self.dropdown.addItem('User Defined')
-		self.method = 'Default'
-		self.dropdown.currentIndexChanged.connect(self.handle_selection_change)
-		self.dropdown_label = QLabel('No method selected')
-		self.tab1.layout.addWidget(self.dropdown_label, 0, 1)
-		self.tab1.layout.addWidget(self.dropdown, 0, 0)
+			self.dropdown_est.addItem(key)
+		self.dropdown_est.addItem('User Defined')
+		self.method_est = 'Default'
+		self.dropdown_est.currentIndexChanged.connect(self.handle_selection_change_est)
+		self.dropdown_est_label = QLabel('No method selected')
+		self.tab1.layout.addWidget(self.dropdown_est_label, 0, 1)
+		self.tab1.layout.addWidget(self.dropdown_est, 0, 0)
 
 		#BATCH SIZE AND TIME STEP
-		self.timestep_label = QLabel('Please enter audio timestep (in seconds)')
-		self.tab1.layout.addWidget(self.timestep_label, 2, 0)
-		self.timestep = QLineEdit(self)
-		self.tab1.layout.addWidget(self.timestep, 2, 1)
-		self.batchsize_label = QLabel('Please enter batchsize')
-		self.tab1.layout.addWidget(self.batchsize_label, 3, 0)
-		self.batchsize = QLineEdit(self)
-		self.tab1.layout.addWidget(self.batchsize, 3, 1)
+		self.timestep_est_label = QLabel('Please enter audio timestep (in seconds)')
+		self.tab1.layout.addWidget(self.timestep_est_label, 2, 0)
+		self.timestep_est = QLineEdit(self)
+		self.tab1.layout.addWidget(self.timestep_est, 2, 1)
+		self.batchsize_est_label = QLabel('Please enter batchsize')
+		self.tab1.layout.addWidget(self.batchsize_est_label, 3, 0)
+		self.batchsize_est = QLineEdit(self)
+		self.tab1.layout.addWidget(self.batchsize_est, 3, 1)
 
 		#ESTIMATION BUTTON
 		self.estimate = QPushButton("Estimate wind speed")
+		self.estimate.setStyleSheet("background-color : lightblue")
 		self.estimate.clicked.connect(self.press_estimate)
 		self.tab1.layout.addWidget(self.estimate, 0, 2)
 		
 		# DIRECTORY SELECTION
-		self.directory_button = QPushButton("Select Directory")
-		self.directory_button.clicked.connect(self.select_directory)
-		self.tab1.layout.addWidget(self.directory_button, 1, 0)
-		self.directory_label = QLabel('No directory selected')
-		self.tab1.layout.addWidget(self.directory_label, 1, 1)
+		self.directory_est_button = QPushButton("Select Directory")
+		self.directory_est_button.clicked.connect(self.select_est_directory)
+		self.tab1.layout.addWidget(self.directory_est_button, 1, 0)
+		self.directory_est_label = QLabel('No directory selected')
+		self.tab1.layout.addWidget(self.directory_est_label, 1, 1)
 
 		#FIX GEOMETRY
 		self.tab1.layout.setColumnStretch(0, 1)
@@ -107,7 +112,6 @@ class Fenetre(QWidget):
 		self.tab1.layout.setRowStretch(2, 3)
 		self.tab1.layout.setRowStretch(3, 4)
 		self.tab1.layout.setRowStretch(4, 6)
-
 
 		self.tab1.setLayout(self.tab1.layout)
 
@@ -227,24 +231,111 @@ class Fenetre(QWidget):
 		self.tab3.layout.setColumnStretch(4, 6)
 		self.tab3.setLayout(self.tab3.layout)
 
+
+		####################### TAB 4 #############################
+
+		self.tab4.layout = QGridLayout()
+	
+		#METHOD SELECTION
+		self.dropdown_cal = QComboBox(self)
+		for key in literature.keys():
+			self.dropdown_cal.addItem(key)
+		self.dropdown_cal.addItem('User Defined')
+		self.method_cal = 'Default'
+		self.dropdown_cal.currentIndexChanged.connect(self.handle_selection_change_cal)
+		self.dropdown_cal_label = QLabel('No method selected')
+		self.tab4.layout.addWidget(self.dropdown_cal_label, 0, 1)
+		self.tab4.layout.addWidget(self.dropdown_cal, 0, 0)
+
+		'''
+		#DATE RETRIEVAL
+		self.date_cal_label = QLabel('Select beginning datetime of audio recordings (audio files are supposed to be continuous)"
+		self.date_cal_button = QDateTimeEdit(self)
+		self.tab4.layout.addWidget(self.date_cal_button, 6, 0)
+		self.validate_date_cal = QtWidgets.QPushButton(self)
+		self.validate_date_cal.setText("Enter")
+		self.validate_date_cal.clicked.connect(self.handle_selection_date_cal)
+		self.tab4.layout.addWidget(self.validate_date_cal, 6, 1)'''
+
+		#BATCH SIZE AND TIME STEP
+		self.timestep_cal_label = QLabel('Please enter audio timestep (in seconds)')
+		self.tab4.layout.addWidget(self.timestep_cal_label, 4, 0)
+		self.timestep_cal = QLineEdit(self)
+		self.tab4.layout.addWidget(self.timestep_cal, 4, 1)
+		self.batchsize_cal_label = QLabel('Please enter batchsize')
+		self.tab4.layout.addWidget(self.batchsize_cal_label, 3, 0)
+		self.batchsize_cal = QLineEdit(self)
+		self.tab4.layout.addWidget(self.batchsize_cal, 3, 1)
+
+		#CALIBRATION BUTTON
+		self.calibrate = QPushButton("Calibrate model parameters")
+		self.calibrate.clicked.connect(self.press_calibrate)
+		self.tab4.layout.addWidget(self.calibrate, 0, 2)
+		
+		# DIRECTORY SELECTION
+		self.directory_cal_button = QPushButton("Select Directory of wav files")
+		self.directory_cal_button.clicked.connect(self.select_cal_directory)
+		self.tab4.layout.addWidget(self.directory_cal_button, 1, 0)
+		self.directory_cal_label = QLabel('No directory selected')
+		self.tab4.layout.addWidget(self.directory_cal_label, 1, 1)
+		self.directory_wind_button = QPushButton("Select Directory of ERA wind files")
+		self.directory_wind_button.clicked.connect(self.select_wind_directory)
+		self.tab4.layout.addWidget(self.directory_wind_button, 2, 0)
+		self.directory_wind_label = QLabel('No directory selected')
+		self.tab4.layout.addWidget(self.directory_wind_label, 2, 1)
+
+		#FIX GEOMETRY
+		self.tab1.layout.setColumnStretch(0, 1)
+		self.tab1.layout.setColumnStretch(1, 2)
+		self.tab1.layout.setColumnStretch(2, 4)
+
+		self.tab4.setLayout(self.tab4.layout)
+
 		self.layout.addWidget(self.tabs)
 		self.setLayout(self.layout)
 
-	def select_directory(self):
+
+	def select_wind_directory(self):
+		'''
+		Get and store directory path where ERA wind files to analyze are stored
+		'''
+		self.directory_wind = QFileDialog.getExistingDirectory(self, "Select Directory")
+		if self.directory_wind:
+			self.directory_wind_label.setText(self.directory_wind)
+
+	def select_est_directory(self):
 		'''
 		Get and store directory path where sound files to analyze are stored
 		'''
-		self.directory = QFileDialog.getExistingDirectory(self, "Select Directory")
-		if self.directory:
-			self.directory_label.setText(self.directory)
+		self.directory_est = QFileDialog.getExistingDirectory(self, "Select Directory")
+		if self.directory_est:
+			self.directory_est_label.setText(self.directory_est)
 
-	def handle_selection_change(self, index):
+	def select_cal_directory(self):
+		'''
+		Get and store directory path where sound files to calibrate parameters with are stored
+		'''
+		self.directory_cal = QFileDialog.getExistingDirectory(self, "Select Directory")
+		if self.directory_cal:
+			self.directory_cal_label.setText(self.directory_cal)
+
+	def handle_selection_date_cal(self):
+		self.date_cal = self.date_cal_button.dateTime().toPyDateTime()
+		print(self.date_cal)
+
+	def handle_selection_change_est(self, index):
 		'''
 		Dropdown menu to chose method for wind speed estimation
 		'''
-		self.method = self.dropdown.currentText()
-		self.dropdown_label.setText(f'{self.method} method selected')
+		self.method_est = self.dropdown_est.currentText()
+		self.dropdown_est_label.setText(f'{self.method_est} method selected')
 
+	def handle_selection_change_cal(self, index):
+		'''
+		Dropdown menu to chose method for parameters calibration
+		'''
+		self.method_cal = self.dropdown_cal.currentText()
+		self.dropdown_cal_label.setText(f'{self.method_cal} method selected')
 		
 	def computation_complete(self):
 		'''
@@ -252,6 +343,7 @@ class Fenetre(QWidget):
 		'''
 		self.wind_plot.plot(self.worker.ts, self.worker.wind_speed)
 		#Reshape time, spl and wind estimation data for table widget
+		print(self.worker.ts, self.worker.wind_speed, self.worker.sound_pressure_level)
 		table_data = np.hstack((np.array(self.worker.ts).reshape(-1,1), np.array(self.worker.wind_speed).reshape(-1,1), np.array(self.worker.sound_pressure_level).reshape(-1,1)))
 		self.spl_table.setRowCount(len(table_data)+1)
 		for i, elem in enumerate(table_data):
@@ -264,12 +356,22 @@ class Fenetre(QWidget):
 		Function that gets wav files and launches computation of spl and wind estimation
 		'''
 		iteration = 0
-		fns = get_files(self.directory)
-		timestamps = get_timestamps(fns, float(self.timestep.text())) #Timestamps are created in utils
-		self.worker = Worker(timestamps, method = self.method, batch_size = int(self.batchsize.text())) # SPL and wind estimation are launched
+		fns = get_files(self.directory_est)
+		timestamps = get_timestamps(fns, float(self.timestep_est.text())) #Timestamps are created in utils
+		self.worker = Worker(timestamps, method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
 		self.worker.signals.finished.connect(self.computation_complete)   # Check if computation is finished to plot data and show table
 		self.threadpool.start(self.worker)
+		#self.worker = Worker(timestamps, method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
 
+	def press_calibrate(self):
+		"""
+		Function that loads wav files and calibrates using stratified K Folds the parameters for wind estimation
+		"""
+		iteration = 0
+		fns = get_files(self.directory_cal)
+		timestamps = get_timestamps(fns, float(self.timestep_cal.text())) #Timestamps are created in utils
+		self.params = Calibrate(timestamps, self.directory_wind, method = self.method_cal, batch_size = int(self.batchsize_cal.text())) # SPL and wind estimation are launched
+		self.threadpool.start(self.params)
 
 	def save_user(self):
 		'''
@@ -302,13 +404,15 @@ class Fenetre(QWidget):
 		make_cds_file(self.key.text(), self.uid.text(), os.path.join(os.getcwd(), 'data'))
 		df = download_era_data(os.path.join(os.getcwd(), "data"), "era", self.key, ['10m_u_component_of_wind', '10m_v_component_of_wind'],
 			self.years.text().replace(" ", "").split(','), months, days, ['00:00','01:00','02:00','03:00','04:00','05:00','06:00', '07:00','08:00','09:00','10:00','11:00','12:00', '13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'], 
-			[self.north_boundary.text(), self.west_boundary.text(), self.south_boundary.text(), self.east_boundary.text()])
+			[self.north_boundary.text(), self.west_boundary.text(), self.south_boundary.text(), self.east_boundary.text()]) 
+
+
 
 
 app = QApplication.instance() 
 if not app:
     app = QApplication(sys.argv)
-    
+
 fen = Fenetre()
 fen.resize(2000, 1000)
 fen.move(300,50)
