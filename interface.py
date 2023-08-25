@@ -12,7 +12,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, FigureCanvas, 
 from matplotlib.figure import Figure
 from config import literature, device
 from models import empirical
-from utils import get_files, get_timestamps, append_to_toml
+from utils import get_files, get_timestamps, append_to_toml, format_plot_axis
 from processing.run import Worker
 from models.calibrate import Calibrate
 from processing.preprocessing import Load_Data, compute_spl
@@ -21,6 +21,17 @@ from cds.access_cds import make_cds_file, download_era_data
 
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
+
+'''def check_fns(fns):
+	if os.path.exists('app/files.json') :
+		with open('file_names.json', 'r') as file:
+			file_names = json.load(file)
+		crit = set(fns) == set(file_names)
+		if crit:
+			return crit
+	with open('app/files.json', 'w') as file:
+		json.dump(fns, file)
+	return crit'''
 
 
 class Fenetre(QWidget):
@@ -321,7 +332,7 @@ class Fenetre(QWidget):
 
 	def handle_selection_date_cal(self):
 		self.date_cal = self.date_cal_button.dateTime().toPyDateTime()
-		print(self.date_cal)
+
 
 	def handle_selection_change_est(self, index):
 		'''
@@ -341,9 +352,8 @@ class Fenetre(QWidget):
 		'''
 		Once computation is complete, show results in table and as a plot. Data are stored in worker class.
 		'''
-		self.wind_plot.plot(self.worker.ts, self.worker.wind_speed)
+		self.wind_plot.plot(format_plot_axis(self.worker.ts), self.worker.wind_speed)
 		#Reshape time, spl and wind estimation data for table widget
-		print(self.worker.ts, self.worker.wind_speed, self.worker.sound_pressure_level)
 		table_data = np.hstack((np.array(self.worker.ts).reshape(-1,1), np.array(self.worker.wind_speed).reshape(-1,1), np.array(self.worker.sound_pressure_level).reshape(-1,1)))
 		self.spl_table.setRowCount(len(table_data)+1)
 		for i, elem in enumerate(table_data):
@@ -358,7 +368,7 @@ class Fenetre(QWidget):
 		iteration = 0
 		fns = get_files(self.directory_est)
 		timestamps = get_timestamps(fns, float(self.timestep_est.text())) #Timestamps are created in utils
-		self.worker = Worker(timestamps, method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
+		self.worker = Worker(timestamps, float(self.timestep_est.text()), method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
 		self.worker.signals.finished.connect(self.computation_complete)   # Check if computation is finished to plot data and show table
 		self.threadpool.start(self.worker)
 		#self.worker = Worker(timestamps, method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
@@ -370,7 +380,7 @@ class Fenetre(QWidget):
 		iteration = 0
 		fns = get_files(self.directory_cal)
 		timestamps = get_timestamps(fns, float(self.timestep_cal.text())) #Timestamps are created in utils
-		self.params = Calibrate(timestamps, self.directory_wind, method = self.method_cal, batch_size = int(self.batchsize_cal.text())) # SPL and wind estimation are launched
+		self.params = Calibrate(timestamps, float(self.timestep_cal.text()), self.directory_wind, method = self.method_cal, batch_size = int(self.batchsize_cal.text())) # SPL and wind estimation are launched
 		self.threadpool.start(self.params)
 
 	def save_user(self):

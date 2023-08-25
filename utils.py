@@ -41,22 +41,28 @@ def get_timestamps(fns, dt):
 		timestamps['time'].extend(np.arange(0, duration, dt))
 	return timestamps
  
-
+def format_plot_axis(ts):
+	for i in range(1, len(ts)):
+		if ts[i] < ts[i-1]:
+			ts[i:] += ts[i-1]
+	return ts
 
 def read_toml_file(file_path):
-    with open(file_path, "r") as file:
-        return toml.load(file)
+	with open(file_path, "r") as file:
+		return toml.load(file)
+
 def modify_toml_data(existing_data, new_data):
-    existing_data.update(new_data)
-    return existing_data
+	existing_data.update(new_data)
+	return existing_data
+
 def write_toml_file(file_path, data):
-    with open(file_path, "w") as file:
-        toml.dump(data, file)
+	with open(file_path, "w") as file:
+		toml.dump(data, file)
 
 def append_to_toml(file_path, new_data):
-    existing_data = read_toml_file(file_path)
-    modified_data = modify_toml_data(existing_data, new_data)
-    write_toml_file(file_path, modified_data)
+	existing_data = read_toml_file(file_path)
+	modified_data = modify_toml_data(existing_data, new_data)
+	write_toml_file(file_path, modified_data)
 
 
 

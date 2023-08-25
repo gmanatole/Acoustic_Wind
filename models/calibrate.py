@@ -8,6 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QRunnable, pyqtSlot
 from utils import beaufort
 import scipy.interpolate as inter
 from sklearn.model_selection import StratifiedKFold
+from utils import read_toml_file, write_toml_file
 
 class WorkerSignals(QObject):
 	finished = pyqtSignal()
@@ -17,7 +18,7 @@ class WorkerSignals(QObject):
 
 class Calibrate(QRunnable):
 
-	def __init__(self, timestamps, wind_path, *, method = 'Hildebrand', batch_size = 8):
+	def __init__(self, timestamps, timestep, wind_path, *, method = 'Hildebrand', batch_size = 8):
 		'''
 		Parameters
 		----------
@@ -31,6 +32,7 @@ class Calibrate(QRunnable):
 		super(Calibrate, self).__init__()
 		self.method = method  #method name
 		self.batch_size = batch_size
+		self.timestep = timestep
 		self.config = literature[method]   #parameters linked to method
 		self.wind_path = wind_path
 		self.wind_speed = []
@@ -52,7 +54,15 @@ class Calibrate(QRunnable):
 		n_splits : Number of folds for the split. Results are averaged. The default is 5.
 		bounds : Optional bounds on fit parameters. The default is False.
 		'''
-		if not os.path.exists('data/noise_levels.csv') :
+		already_computed = False
+		if os.path.exists('data/noise_levels.csv') and os.path.exists('app/analysis_params.toml'):
+			temp_timestamps = pd.read_csv('data/noise_levels.csv')
+			temp_params = read_toml_file('app/analysis_params.toml')
+			if (set(temp_timestamps['fn']) == set(self.timestamps['fn'])) and (self.method == temp_params['analysis_params']['method']) and (self.timestep == temp_params['analysis_params']['timestep']) :
+				already_computed = True
+				self.sound_pressure_level = temp_timestamps['spl']
+				self.signals.finished.emit()
+		if not already_computed :
 			inst = Load_Data(self.timestamps, method = self.method, batch_size = self.batch_size)
 			for batch in inst :
 				fn, ts, fs, sig = batch
@@ -62,8 +72,9 @@ class Calibrate(QRunnable):
 			self.timestamps['spl'] =  self.sound_pressure_level
 			self.signals.finished.emit()
 			pd.DataFrame(self.timestamps).to_csv('data/noise_levels.csv')
-		else :
-			self.timestamps = pd.read_csv('data/noise_levels.csv')
+			analysis_params = {"analysis_params" : {"timestep":self.timestep, "method":self.method}}
+			write_toml_file('app/analysis_params.toml', analysis_params)
+
 
 		stamps_data = np.load(os.path.join(self.wind_path, 'stamps.npz'), allow_pickle = True)
 		u10_data = np.load(os.path.join(self.wind_path, 'u10_era.npy')).mean(axis = (1,2))
