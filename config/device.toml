@@ -1,6 +1,5 @@
 [hydrophone]
-
-	sensitivity=-176
-	gain=0
-	Vadc=1
-	Nbits=16
+sensitivity = -170
+gain = 10
+Vadc = 5
+Nbits = 16

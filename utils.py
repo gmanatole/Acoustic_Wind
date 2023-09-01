@@ -2,6 +2,16 @@ import glob, os
 import soundfile as sf
 import numpy as np
 import toml
+import calendar, datetime, time
+
+# yyyymmdd to epoch
+get_yyyymmdd_date = lambda x : calendar.timegm(time.strptime(x, '%Y%m%d-%H%M%S'))
+# datetime to epoch
+get_datetime_date = lambda x : calendar.timegm(time.strptime(x, '%Y-%m-%d %H:%M:%S')) #get_datetime_date = lambda x : x.timestamp()
+#epoch to datetime
+inverse_datetime_date = lambda x : datetime.datetime.fromtimestamp(x)
+#epoch to yyymmdd
+inverse_yyyymmdd_date = lambda x : datetime.datetime.fromtimestamp(x).strftime('%y%m%d-%H%M%S')
 
 
 def beaufort(x):
@@ -36,8 +46,8 @@ def get_timestamps(fns, dt):
 	for fn in fns :
 		duration = sf.info(fn).duration
 		fs = sf.info(fn).samplerate
-		timestamps['fn'].extend([fn] * (int(duration / dt)+1))
-		timestamps['fs'].extend([fs] * (int(duration / dt)+1))
+		timestamps['fn'].extend([fn] * int(np.ceil(duration/dt))) # (int(duration / dt)+1))
+		timestamps['fs'].extend([fs] * int(np.ceil(duration/dt))) # (int(duration / dt)+1))
 		timestamps['time'].extend(np.arange(0, duration, dt))
 	return timestamps
  

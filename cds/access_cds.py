@@ -9,28 +9,20 @@ import pandas as pd
 
 get_epoch_time = lambda x : calendar.timegm(x.timetuple()) if isinstance(x, datetime) else x
 
-def make_cds_file(key, udi, path):
-	os.chdir(os.path.expanduser("~"))
+def make_cds_file(key, udi):
 	try :
- 	   os.remove('.cdsapirc')
+ 	   os.remove(os.path.join(os.path.expanduser("~"), '.cdsapirc'))
 	except FileNotFoundError :
 	    pass
 
-	cmd1 = "echo url: https://cds.climate.copernicus.eu/api/v2 >> .cdsapirc"
-	cmd2 = "echo key: {}:{} >> .cdsapirc".format(udi, key)
+	cmd1 = "echo url: https://cds.climate.copernicus.eu/api/v2 >> ~/.cdsapirc"
+	cmd2 = "echo key: {}:{} >> ~/.cdsapirc".format(udi, key)
 	os.system(cmd1)
 	os.system(cmd2)
-	
-	path_to_api = path
-
-	os.chdir(path_to_api)
-	os.getcwd()
-
-
 
 def return_cdsapi(filename, key, variable, year, month, day, time, area):
 
-  filename = filename + '.nc'
+  filename = 'data/' + filename + '.nc'
 
   c = cdsapi.Client()
   
@@ -54,7 +46,7 @@ def return_cdsapi(filename, key, variable, year, month, day, time, area):
 
 def format_nc(filename):
 
-  downloaded_cds = filename + '.nc'
+  downloaded_cds = 'data/' + filename + '.nc'
   fh = Dataset(downloaded_cds, mode='r')
 
   variables = list(fh.variables.keys())[3:]
@@ -86,9 +78,9 @@ def format_nc(filename):
 
 def save_results(dates, lat, lon, single_levels, variables, filename):
 	for i in range(len(variables)):
-		np.save(variables[i]+'_'+filename, np.ma.filled(single_levels[i], fill_value=float('nan')), allow_pickle = True)
+		np.save('data/' + variables[i]+'_'+filename, np.ma.filled(single_levels[i], fill_value=float('nan')), allow_pickle = True)
 
-	np.savez('stamps', timestamps = np.array(dates), timestamps_epoch = np.array(list(map(get_epoch_time, np.array(dates)))), latitude = np.array(lat), longitude = np.array(lon))
+	np.savez('data/stamps', timestamps = np.array(dates), timestamps_epoch = np.array(list(map(get_epoch_time, np.array(dates)))), latitude = np.array(lat), longitude = np.array(lon))
 #	np.save('timestamps.npy', np.array(dates))
 #	np.save('latitude.npy', np.array(lat))
 #	np.save('longitude.npy', np.array(lon))

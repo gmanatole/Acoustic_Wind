@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtCore import Qt as QtDisp
 import matplotlib
+import pandas as pd
 matplotlib.use('Qt5Agg')
 from pyqtgraph import *
 import pyqtgraph as pg
@@ -12,7 +13,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, FigureCanvas, 
 from matplotlib.figure import Figure
 from config import literature, device
 from models import empirical
-from utils import get_files, get_timestamps, append_to_toml, format_plot_axis
+from utils import get_files, get_timestamps, append_to_toml, format_plot_axis, write_toml_file
 from processing.run import Worker
 from models.calibrate import Calibrate
 from processing.preprocessing import Load_Data, compute_spl
@@ -46,7 +47,7 @@ class Fenetre(QWidget):
 
 		super(QWidget, self).__init__()
 		self.layout = QVBoxLayout(self)
-		self.setWindowTitle("Estimate wind speed with underwater acoustic recordings")
+		self.setWindowTitle("ARAMIS")
 		self.setWindowIcon(QtGui.QIcon('app/logo.png'))
 		#instantiate threadpool for worker class
 		self.threadpool = QThreadPool()
@@ -162,9 +163,31 @@ class Fenetre(QWidget):
 		self.create_user.clicked.connect(self.save_user)
 		self.tab2.layout.addWidget(self.create_user, 8, 0)
 
+		self.sensitivity_label = QLabel(' '*30 + 'Please enter the sensitivity of your hydrophone (dB re 1 \u03BCPa)')
+		self.tab2.layout.addWidget(self.sensitivity_label, 2, 2)
+		self.hyd_sensitivity = QLineEdit(self)
+		self.tab2.layout.addWidget(self.hyd_sensitivity, 2, 3)
+		self.gain_label = QLabel(' '*30+'Please enter the gain of your hydrophone (dB)')
+		self.tab2.layout.addWidget(self.gain_label, 3, 2)
+		self.hyd_gain = QLineEdit(self)
+		self.tab2.layout.addWidget(self.hyd_gain, 3, 3)
+		self.voltage_label = QLabel(' '*30+'Please enter the voltage of your ADC (V)')
+		self.tab2.layout.addWidget(self.voltage_label, 4, 2)
+		self.hyd_voltage = QLineEdit(self)
+		self.tab2.layout.addWidget(self.hyd_voltage, 4, 3)
+		self.bits_label = QLabel(' '*30+'Please enter the number of bits your signal is encoded with')
+		self.tab2.layout.addWidget(self.bits_label, 5, 2)
+		self.hyd_bits = QLineEdit(self)
+		self.tab2.layout.addWidget(self.hyd_bits, 5, 3)
+		self.create_hyd = QPushButton("Save values")
+		self.create_hyd.clicked.connect(self.save_hyd)
+		self.tab2.layout.addWidget(self.create_hyd, 6,3)
+
 		#FIX GEOMETRY
 		self.tab2.layout.setColumnStretch(0, 3)
 		self.tab2.layout.setColumnStretch(3, 4)
+		self.tab2.layout.setColumnStretch(4, 7)
+		self.tab2.layout.setColumnStretch(7, 8)
 		self.tab2.setLayout(self.tab2.layout)
 
 		####################### TAB 3 #############################
@@ -204,6 +227,8 @@ class Fenetre(QWidget):
 		self.tab3.layout.addWidget(self.years_label, 7, 0)
 		self.years = QLineEdit(self)
 		self.tab3.layout.addWidget(self.years, 7, 1)
+
+
 		#Create months checklist
 		self.months_label = QLabel('Select the months of your audio recordings')
 		self.tab3.layout.addWidget(self.months_label, 1, 3)
@@ -244,6 +269,7 @@ class Fenetre(QWidget):
 
 
 		####################### TAB 4 #############################
+	
 
 		self.tab4.layout = QGridLayout()
 	
@@ -258,15 +284,20 @@ class Fenetre(QWidget):
 		self.tab4.layout.addWidget(self.dropdown_cal_label, 0, 1)
 		self.tab4.layout.addWidget(self.dropdown_cal, 0, 0)
 
-		'''
-		#DATE RETRIEVAL
-		self.date_cal_label = QLabel('Select beginning datetime of audio recordings (audio files are supposed to be continuous)"
-		self.date_cal_button = QDateTimeEdit(self)
-		self.tab4.layout.addWidget(self.date_cal_button, 6, 0)
-		self.validate_date_cal = QtWidgets.QPushButton(self)
-		self.validate_date_cal.setText("Enter")
-		self.validate_date_cal.clicked.connect(self.handle_selection_date_cal)
-		self.tab4.layout.addWidget(self.validate_date_cal, 6, 1)'''
+		#TIMEFORMAT SELECTION AND TIMESTAMPS
+		self.timeformat_button = QComboBox(self)
+		for key in ['epoch', 'Python datetime', 'yyyymmdd-HHMMSS']:
+			self.timeformat_button.addItem(key)
+		self.timeformat_cal = 'epoch'
+		self.timeformat_button.currentIndexChanged.connect(self.handle_timeformat_change_cal)
+		self.timeformat_cal_label = QLabel('No time format selected')
+		self.tab4.layout.addWidget(self.timeformat_cal_label, 6, 1)
+		self.tab4.layout.addWidget(self.timeformat_button, 6, 0)
+		self.timestamps_cal_button = QPushButton('Select timestamps file')
+		self.timestamps_cal_button.clicked.connect(self.select_timestamps_cal)
+		self.tab4.layout.addWidget(self.timestamps_cal_button, 5, 0)
+		self.timestamps_cal_label = QLabel('No timestamps file selected')
+		self.tab4.layout.addWidget(self.timestamps_cal_label, 5, 1)
 
 		#BATCH SIZE AND TIME STEP
 		self.timestep_cal_label = QLabel('Please enter audio timestep (in seconds)')
@@ -280,6 +311,7 @@ class Fenetre(QWidget):
 
 		#CALIBRATION BUTTON
 		self.calibrate = QPushButton("Calibrate model parameters")
+		self.calibrate.setStyleSheet("background-color : lightblue")
 		self.calibrate.clicked.connect(self.press_calibrate)
 		self.tab4.layout.addWidget(self.calibrate, 0, 2)
 		
@@ -295,10 +327,14 @@ class Fenetre(QWidget):
 		self.directory_wind_label = QLabel('No directory selected')
 		self.tab4.layout.addWidget(self.directory_wind_label, 2, 1)
 
+		#PREPARE PLOT
+		self.calibration_plot = PlotWidget()		
+		self.tab4.layout.addWidget(self.calibration_plot, 7, 2)
+
 		#FIX GEOMETRY
-		self.tab1.layout.setColumnStretch(0, 1)
-		self.tab1.layout.setColumnStretch(1, 2)
-		self.tab1.layout.setColumnStretch(2, 4)
+		self.tab4.layout.setColumnStretch(0, 1)
+		self.tab4.layout.setColumnStretch(1, 2)
+		self.tab4.layout.setColumnStretch(2, 5)
 
 		self.tab4.setLayout(self.tab4.layout)
 
@@ -322,6 +358,16 @@ class Fenetre(QWidget):
 		if self.directory_est:
 			self.directory_est_label.setText(self.directory_est)
 
+	def select_timestamps_cal(self):
+		'''
+		Get and store directory path where sound files to analyze are stored
+		'''
+		self.timestamps_cal_selection = QFileDialog.getOpenFileName(self, "Select file")
+		self.timestamps_cal_file = self.timestamps_cal_selection[0]
+		if self.timestamps_cal_file:
+			self.timestamps_cal_label.setText(self.timestamps_cal_file)
+		self.timestamps_cal_df = pd.read_csv(self.timestamps_cal_file)
+
 	def select_cal_directory(self):
 		'''
 		Get and store directory path where sound files to calibrate parameters with are stored
@@ -330,10 +376,9 @@ class Fenetre(QWidget):
 		if self.directory_cal:
 			self.directory_cal_label.setText(self.directory_cal)
 
-	def handle_selection_date_cal(self):
+	'''	def handle_selection_date_cal(self):
 		self.date_cal = self.date_cal_button.dateTime().toPyDateTime()
-
-
+	'''
 	def handle_selection_change_est(self, index):
 		'''
 		Dropdown menu to chose method for wind speed estimation
@@ -347,7 +392,19 @@ class Fenetre(QWidget):
 		'''
 		self.method_cal = self.dropdown_cal.currentText()
 		self.dropdown_cal_label.setText(f'{self.method_cal} method selected')
-		
+
+	def handle_timeformat_change_cal(self, index):
+		'''
+		Dropdown menu to chose timeformat for parameters calibration
+		'''
+		self.timeformat_cal = self.timeformat_button.currentText()
+		self.timeformat_cal_label.setText(f'{self.timeformat_cal} method selected')	
+
+	def calibration_complete(self):
+		"Once calibration is over, show fit on scatter plot"
+		self.calibration_plot.plot(self.params.dataset.spl, self.params.dataset.wind, pen=None, symbol = 'o')
+		self.calibration_plot.plot(np.arange(min(self.params.dataset.spl), max(self.params.dataset.spl), 1), self.params.function(np.arange(min(self.params.dataset.spl), max(self.params.dataset.spl), 1), *self.params.popt))
+
 	def computation_complete(self):
 		'''
 		Once computation is complete, show results in table and as a plot. Data are stored in worker class.
@@ -380,7 +437,8 @@ class Fenetre(QWidget):
 		iteration = 0
 		fns = get_files(self.directory_cal)
 		timestamps = get_timestamps(fns, float(self.timestep_cal.text())) #Timestamps are created in utils
-		self.params = Calibrate(timestamps, float(self.timestep_cal.text()), self.directory_wind, method = self.method_cal, batch_size = int(self.batchsize_cal.text())) # SPL and wind estimation are launched
+		self.params = Calibrate(timestamps, float(self.timestep_cal.text()), self.timeformat_cal, self.timestamps_cal_df, self.directory_wind, method = self.method_cal, batch_size = int(self.batchsize_cal.text())) # SPL and wind estimation are launched
+		self.params.signals.finished.connect(self.calibration_complete)
 		self.threadpool.start(self.params)
 
 	def save_user(self):
@@ -406,12 +464,34 @@ class Fenetre(QWidget):
 			'parameters': dict(zip(string.ascii_lowercase, self.user_parameters.text().replace(" ", "").split(',')))}}
 		append_to_toml(file_path, new_data)  #process is detailed in utils
 
+	def save_hyd(self):
+		'''
+		Saves user parameters for hydrophone from tab2 to config/hydrophone.toml
+		Fills possible blank values with default values defined here.
+		'''
+		file_path = "config/device.toml"
+		if self.hyd_sensitivity.text() == "":
+			self.hyd_sensitivity.setText('0')
+		if self.hyd_gain.text() == "":
+			self.hyd_gain.setText('0')
+		if self.hyd_voltage.text() == "":
+			self.hyd_voltage.setText('0')
+		if self.hyd_bits.text() == "":
+			self.hyd_bits.setText('0')
+		#Create dictionary to add to toml file
+		new_data = b = {'hydrophone': {'sensitivity': float(self.hyd_sensitivity.text()), 
+			'gain': float(self.hyd_gain.text()), 
+			'Vadc': float(self.hyd_voltage.text()),
+			'Nbits': float(self.hyd_bits.text())}}
+		write_toml_file(file_path, new_data)  #process is detailed in utils
+
+
 	def api_download(self):
 		months = list((np.where([month.isChecked() for month in self.months])[0]+1).astype(str))
 		days = list((np.where([day.isChecked() for day in self.days])[0]+1).astype(str))
 		if not os.path.isdir('data') :
 			os.mkdir('data')
-		make_cds_file(self.key.text(), self.uid.text(), os.path.join(os.getcwd(), 'data'))
+		make_cds_file(self.key.text(), self.uid.text())
 		df = download_era_data(os.path.join(os.getcwd(), "data"), "era", self.key, ['10m_u_component_of_wind', '10m_v_component_of_wind'],
 			self.years.text().replace(" ", "").split(','), months, days, ['00:00','01:00','02:00','03:00','04:00','05:00','06:00', '07:00','08:00','09:00','10:00','11:00','12:00', '13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'], 
 			[self.north_boundary.text(), self.west_boundary.text(), self.south_boundary.text(), self.east_boundary.text()]) 

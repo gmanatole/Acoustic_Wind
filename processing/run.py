@@ -61,7 +61,7 @@ class Worker(QRunnable):
 				spl = compute_spl(sig, fs, np.array(self.config['metadata']['frequency']).reshape(1,-1)[0], device = self.instrument, params = self.config)
 				self.sound_pressure_level.extend(spl)
 			self.timestamps['spl'] = np.array(self.sound_pressure_level).reshape(-1)
-			pd.DataFrame(self.timestamps).to_csv('data/noise_levels.csv')
+			pd.DataFrame(self.timestamps).to_csv('data/noise_levels.csv', index=False)
 			analysis_params = {"analysis_params" : {"timestep":self.timestep, "method":self.method}}
 			write_toml_file('app/analysis_params.toml', analysis_params)
 

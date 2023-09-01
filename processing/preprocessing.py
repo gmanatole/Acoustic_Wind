@@ -3,6 +3,7 @@ from config import literature
 import soundfile as sf
 from scipy.fft import fft, fftfreq, fftshift
 import scipy.signal as sg
+import pandas as pd
 
 def pad_signal(fn, start, stop, fs):
 	sig = np.full((int(fs*(stop-start)), 1), np.nan)
