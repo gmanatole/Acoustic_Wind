@@ -1,0 +1,38 @@
+# PyQt5 for GUI
+pyqt5==5.15.4
+
+# PyQtGraph for graphical plots
+pyqtgraph==0.12.0
+
+# Matplotlib for plotting
+matplotlib==3.4.3
+
+# Pandas for data manipulation
+pandas==1.3.3
+
+# NumPy for numerical operations
+numpy==1.21.2
+
+# PyQt5 for Qt-related functionality
+pyqt5-tools==5.15.2
+
+# Soundfile for audio file handling
+SoundFile==0.10.3.post1
+
+# TOML for configuration file parsing
+toml==0.10.2
+
+# CDS API client
+cdsapi==0.4.2
+
+# tqdm for progress bars
+tqdm==4.62.3
+
+# netCDF4 for handling NetCDF files
+netcdf4==1.5.7
+
+# SciPy for scientific computing
+scipy==1.7.1
+
+# Scikit-learn for machine learning tools
+scikit-learn==0.24.2
