@@ -1,6 +1,8 @@
 # Using underwater acoustics to estimate surface wind speed
 
 This GUI contains all the tools necessary to get in-situ estimations of surface wind speed from an acoustic dataset.
+Packages needed for GUI to run properly can be found in requirements.txt
+
 
 ## Estimate weather
 
