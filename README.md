@@ -37,7 +37,7 @@ In order to get the wind speed estimation, go back to the Estimate weather tab a
 ### Computing the sound pressure level
 
 The sound pressure level (one value at every timestep) is either computed in the estimate weather tab or the calibrate model to data tab. The method used is the one defined by Merchant. (See supporting informations in https://doi.org/10.1111/2041-210X.12330).
-The calibration is as follow : $'S(f) = Mh(f) + G(f) + 20 \cdot log_{10}(\frac{1}{VADC}) + 20 \cdot log_{10}(2^{Nbit−1})'$
+The calibration is as follow : $S(f) = Mh(f) + G(f) + 20 \cdot log_{10}(\frac{1}{V_{ADC}}) + 20 \cdot log_{10}(2^{Nbit−1})$ with Mh the sensitivity, G the gain, Vadc the voltage of the convertor and Nbit the bit depth of the digital signal.
 
 
 
