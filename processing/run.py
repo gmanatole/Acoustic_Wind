@@ -15,7 +15,7 @@ class WorkerSignals(QObject):
 
 class Worker(QRunnable):
 
-	def __init__(self, timestamps, timestep, *, method = 'Hildebrand', batch_size = 8):
+	def __init__(self, timestamps, timestep, loading_bar, *, method = 'Hildebrand', batch_size = 8):
 		'''
 		Parameters
 		----------
@@ -33,6 +33,7 @@ class Worker(QRunnable):
 		self.config = literature[method]   #parameters linked to method
 		self.wind_speed = []
 		self.sound_pressure_level = []
+		self.loading_bar = loading_bar
 		self.timestamps = timestamps
 		self.ts = self.timestamps['time']
 		self.function = empirical.get[self.config['model']]  #get function linked to method
@@ -55,11 +56,15 @@ class Worker(QRunnable):
 				self.signals.finished.emit()
 		if not already_computed :
 			inst = Load_Data(self.timestamps, method = self.method, batch_size = self.batch_size)
+			len_loading_bar, iter_loading_bar = len(inst), 1
+			self.loading_bar.setMaximum(len_loading_bar)
 			for batch in inst :
 				fn, ts, fs, sig = batch
 				ts, fs = np.array(ts), np.array(fs)
 				spl = compute_spl(sig, fs, np.array(self.config['metadata']['frequency']).reshape(1,-1)[0], device = self.instrument, params = self.config)
 				self.sound_pressure_level.extend(spl)
+				self.loading_bar.setValue(iter_loading_bar)
+				iter_loading_bar += 1
 			self.timestamps['spl'] = np.array(self.sound_pressure_level).reshape(-1)
 			pd.DataFrame(self.timestamps).to_csv('data/noise_levels.csv', index=False)
 			analysis_params = {"analysis_params" : {"timestep":self.timestep, "method":self.method}}

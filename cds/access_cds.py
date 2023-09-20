@@ -9,6 +9,18 @@ import pandas as pd
 
 get_epoch_time = lambda x : calendar.timegm(x.timetuple()) if isinstance(x, datetime) else x
 
+def make_windows_cds_file(key, udi):
+    cdsapirc_path = os.path.expanduser("~/.cdsapirc")
+    
+    try:
+        os.remove(cdsapirc_path)
+    except FileNotFoundError:
+        pass
+
+    with open(cdsapirc_path, "w") as file:
+        file.write("url: https://cds.climate.copernicus.eu/api/v2\n")
+        file.write("key: {}:{}\n".format(udi, key))
+
 def make_cds_file(key, udi):
 	try :
  	   os.remove(os.path.join(os.path.expanduser("~"), '.cdsapirc'))
