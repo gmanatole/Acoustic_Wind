@@ -107,7 +107,9 @@ class Fenetre(QWidget):
 		self.estimate.setStyleSheet("background-color : lightblue")
 		self.estimate.clicked.connect(self.press_estimate)
 		self.tab1.layout.addWidget(self.estimate, 0, 2)
-		
+		self.loading_bar_est = QProgressBar()
+		self.tab1.layout.addWidget(self.loading_bar_est, 1, 2)
+
 		# DIRECTORY SELECTION
 		self.directory_est_button = QPushButton("Select Directory")
 		self.directory_est_button.clicked.connect(self.select_est_directory)
@@ -227,6 +229,8 @@ class Fenetre(QWidget):
 		self.tab3.layout.addWidget(self.years_label, 7, 0)
 		self.years = QLineEdit(self)
 		self.tab3.layout.addWidget(self.years, 7, 1)
+		self.loading_bar_era = QProgressBar()
+		self.tab3.layout.addWidget(self.loading_bar_era, 8, 1)
 
 
 		#Create months checklist
@@ -257,6 +261,8 @@ class Fenetre(QWidget):
 		self.download_era = QPushButton("Download ERA5 values")
 		self.download_era.clicked.connect(self.api_download)
 		self.tab3.layout.addWidget(self.download_era, 8, 2)
+
+
 
 		#FIX GEOMETRY
 		for i in range(11):
@@ -425,7 +431,7 @@ class Fenetre(QWidget):
 		iteration = 0
 		fns = get_files(self.directory_est)
 		timestamps = get_timestamps(fns, float(self.timestep_est.text())) #Timestamps are created in utils
-		self.worker = Worker(timestamps, float(self.timestep_est.text()), method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
+		self.worker = Worker(timestamps, float(self.timestep_est.text()), loading_bar = self.loading_bar_est, method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
 		self.worker.signals.finished.connect(self.computation_complete)   # Check if computation is finished to plot data and show table
 		self.threadpool.start(self.worker)
 		#self.worker = Worker(timestamps, method = self.method_est, batch_size = int(self.batchsize_est.text())) # SPL and wind estimation are launched
@@ -487,15 +493,19 @@ class Fenetre(QWidget):
 
 
 	def api_download(self):
+		self.loading_bar_era.setMaximum(3)
 		months = list((np.where([month.isChecked() for month in self.months])[0]+1).astype(str))
 		days = list((np.where([day.isChecked() for day in self.days])[0]+1).astype(str))
 		if not os.path.isdir('data') :
 			os.mkdir('data')
+		self.loading_bar_era.setValue(1)
 		make_cds_file(self.key.text(), self.uid.text())
+		self.loading_bar_era.setValue(2)
 		df = download_era_data(os.path.join(os.getcwd(), "data"), "era", self.key, ['10m_u_component_of_wind', '10m_v_component_of_wind'],
 			self.years.text().replace(" ", "").split(','), months, days, ['00:00','01:00','02:00','03:00','04:00','05:00','06:00', '07:00','08:00','09:00','10:00','11:00','12:00', '13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00','23:00'], 
 			[self.north_boundary.text(), self.west_boundary.text(), self.south_boundary.text(), self.east_boundary.text()]) 
 
+		self.loading_bar_era.setValue(3)
 
 
 
