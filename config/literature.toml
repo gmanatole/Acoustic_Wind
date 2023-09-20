@@ -4,9 +4,6 @@ model = "logarithmic"
 [Pensieri]
 model = "quadratic"
 
-[User_Pensieri]
-model = "quadratic"
-
 [Default.metadata]
 samplerate = 32000
 frequency = 8000
@@ -40,19 +37,3 @@ b = -3.2917
 c = 63.016
 d = 0
 
-[User_Pensieri.metadata]
-samplerate = 100000
-frequency = 8000
-
-[User_Pensieri.preprocessing]
-window = "hanning"
-duration = 4.5
-sample_length = 0.01024
-sample_number = 8
-overlap = 0.2
-
-[User_Pensieri.parameters]
-a = "0.014130970528374327"
-b = "-0.8019290820387672"
-c = "43.62024217717136"
-d = "3.7352202776912433"
